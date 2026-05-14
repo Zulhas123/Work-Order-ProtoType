@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { WorkOrderStatus, useWorkOrders } from "../store/workOrders";
+import { useSettings } from "../store/settings";
+import { useUsers } from "../store/users";
 import { Button, Field, Panel } from "../ui/controls";
 
 function toMDY(iso: string) {
@@ -15,7 +17,10 @@ export default function WorkOrderReviewPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { getById, update } = useWorkOrders();
+  const { state: settingsState } = useSettings();
+  const { getById: getUserById } = useUsers();
   const wo = id ? getById(id) : undefined;
+  const currentUser = settingsState.currentUserId ? getUserById(settingsState.currentUserId) : undefined;
 
   const line0 = useMemo(() => wo?.lines[0], [wo]);
 
@@ -66,7 +71,9 @@ export default function WorkOrderReviewPage() {
                 <select
                   className="select"
                   value={wo.status}
-                  onChange={(e) => update({ ...wo, status: e.target.value as WorkOrderStatus }, "M(EMT)", "Work order status has been changed")}
+                  onChange={(e) =>
+                    update({ ...wo, status: e.target.value as WorkOrderStatus }, currentUser?.displayName ?? "Admin", "Work order status has been changed")
+                  }
                 >
                   {STATUSES.map((s) => (
                     <option key={s} value={s}>
@@ -164,4 +171,3 @@ export default function WorkOrderReviewPage() {
     </div>
   );
 }
-

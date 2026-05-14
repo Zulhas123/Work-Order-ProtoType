@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Priority, WorkOrder, WorkOrderLine, WorkOrderStatus, useWorkOrders } from "../store/workOrders";
+import { useSettings } from "../store/settings";
+import { useUsers } from "../store/users";
 import { Button, Field, Modal, Panel } from "../ui/controls";
 import { IconList, IconPlus } from "../ui/icons";
 
@@ -38,6 +40,8 @@ export default function WorkOrderCreatePage({ mode }: { mode: "create" | "edit" 
   const navigate = useNavigate();
   const params = useParams();
   const { getById, create, update, nextOrderNo, uid } = useWorkOrders();
+  const { state: settingsState } = useSettings();
+  const { activeUsers } = useUsers();
 
   const editing = mode === "edit";
   const existing = editing && params.id ? getById(params.id) : undefined;
@@ -61,9 +65,9 @@ export default function WorkOrderCreatePage({ mode }: { mode: "create" | "edit" 
         }
       : {
           orderNo: nextOrderNo(),
-          submittedBy: "M(EMT)",
+          submittedBy: activeUsers[0]?.displayName ?? "M(EMT)",
           submissionDate: todayISO(),
-          submittedTo: "M(CEMT)T-S",
+          submittedTo: "",
           assignedTo: "",
           type: "ইলেক্ট্রিক্যাল মেইনটেন্যান্স-ভিতর",
           dept: "",
@@ -76,13 +80,14 @@ export default function WorkOrderCreatePage({ mode }: { mode: "create" | "edit" 
         };
     return base;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [existing?.id]);
+  }, [existing?.id, activeUsers]);
 
   const [submittedBy, setSubmittedBy] = useState(initial.submittedBy);
   const [orderNo] = useState(initial.orderNo);
   const [dateISO] = useState(initial.submissionDate);
-  const [type] = useState(initial.type);
+  const [type, setType] = useState(initial.type);
   const [submittedTo, setSubmittedTo] = useState(initial.submittedTo);
+  const [assignedTo, setAssignedTo] = useState(initial.assignedTo ?? "");
   const [status, setStatus] = useState<WorkOrderStatus>(initial.status);
   const [dept, setDept] = useState(initial.dept);
   const [lines, setLines] = useState<WorkOrderLine[]>(initial.lines);
@@ -102,7 +107,7 @@ export default function WorkOrderCreatePage({ mode }: { mode: "create" | "edit" 
       submittedBy,
       submissionDate: dateISO,
       submittedTo,
-      assignedTo: initial.assignedTo,
+      assignedTo,
       type,
       dept,
       status,
@@ -110,11 +115,11 @@ export default function WorkOrderCreatePage({ mode }: { mode: "create" | "edit" 
       lines,
       materials: initial.materials,
       additionalDescription: initial.additionalDescription,
-      createdByDeptCode: initial.createdByDeptCode
+      createdByDeptCode: activeUsers.find((u) => u.displayName === submittedBy)?.deptCode ?? initial.createdByDeptCode
     };
-  }, [dept, dateISO, initial, lines, orderNo, status, submittedBy, submittedTo, type]);
+  }, [activeUsers, assignedTo, dept, dateISO, initial, lines, orderNo, status, submittedBy, submittedTo, type]);
 
-  const canConfirm = lines.some((l) => l.item.trim()) && submittedBy.trim();
+  const canConfirm = lines.some((l) => l.item.trim()) && submittedBy.trim() && submittedTo.trim();
 
   return (
     <div>
@@ -128,9 +133,9 @@ export default function WorkOrderCreatePage({ mode }: { mode: "create" | "edit" 
         <div className="formGrid">
           <Field label="প্রাপকঃ">
             <select className="select" value={submittedBy} onChange={(e) => setSubmittedBy(e.target.value)}>
-              {["M(EMT)", "M(COPL-A)T", "ATO(CMM)T", "DGM(PGFM)", "Admin"].map((v) => (
-                <option key={v} value={v}>
-                  {v}
+              {activeUsers.map((u) => (
+                <option key={u.id} value={u.displayName}>
+                  {u.displayName}
                 </option>
               ))}
             </select>
@@ -142,11 +147,35 @@ export default function WorkOrderCreatePage({ mode }: { mode: "create" | "edit" 
             <input className="input" value={toMDY(dateISO)} disabled />
           </Field>
           <Field label="Type">
-            <input className="input" value={type} disabled />
+            <select className="select" value={type} onChange={(e) => setType(e.target.value)}>
+              {settingsState.master.workOrderTypes.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+              {!settingsState.master.workOrderTypes.includes(type) ? <option value={type}>{type}</option> : null}
+            </select>
           </Field>
 
           <Field label="প্রেরকঃ">
-            <input className="input" value={submittedTo} onChange={(e) => setSubmittedTo(e.target.value)} placeholder="Submitted To" />
+            <select className="select" value={submittedTo} onChange={(e) => setSubmittedTo(e.target.value)}>
+              <option value="">Select One</option>
+              {activeUsers.map((u) => (
+                <option key={u.id} value={u.displayName}>
+                  {u.displayName}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Assigned To">
+            <select className="select" value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)}>
+              <option value="">(Unassigned)</option>
+              {activeUsers.map((u) => (
+                <option key={u.id} value={u.displayName}>
+                  {u.displayName}
+                </option>
+              ))}
+            </select>
           </Field>
           <Field label="Status">
             <select className="select" value={status} onChange={(e) => setStatus(e.target.value as WorkOrderStatus)}>
@@ -158,7 +187,14 @@ export default function WorkOrderCreatePage({ mode }: { mode: "create" | "edit" 
             </select>
           </Field>
           <Field label="Dept.">
-            <input className="input" value={dept} onChange={(e) => setDept(e.target.value)} />
+            <select className="select" value={dept} onChange={(e) => setDept(e.target.value)}>
+              <option value="">Select One</option>
+              {settingsState.master.departments.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
           </Field>
         </div>
 

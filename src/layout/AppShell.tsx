@@ -1,6 +1,8 @@
 import { PropsWithChildren, useMemo } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { IconBell, IconDashboard, IconDoc, IconGlobe, IconLogout, IconMenu, IconProfile, IconSettings, IconSms, IconUser } from "../ui/icons";
+import { useSettings } from "../store/settings";
+import { useUsers } from "../store/users";
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: IconDashboard },
@@ -8,7 +10,7 @@ const NAV = [
   { to: "/work-orders", label: "Work Order", icon: IconDoc },
   { to: "/master", label: "Master Setting", icon: IconSettings, chevron: true },
   { to: "/profile", label: "Profile", icon: IconProfile },
-  { to: "/language", label: "English", icon: IconGlobe, chevron: true },
+  { to: "/language", label: "Language", icon: IconGlobe, chevron: true },
   { to: "/report", label: "Report", icon: IconDashboard },
   { to: "/sms", label: "SMS Config", icon: IconSms }
 ];
@@ -16,6 +18,10 @@ const NAV = [
 export default function AppShell({ children }: PropsWithChildren) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { state, markAllNotificationsRead, setCurrentUser } = useSettings();
+  const { getById } = useUsers();
+  const currentUser = state.currentUserId ? getById(state.currentUserId) : undefined;
+  const unread = state.notifications.filter((n) => !n.read).length;
 
   const activeTop = useMemo(() => {
     const match = NAV.find((n) => location.pathname.startsWith(n.to));
@@ -49,7 +55,8 @@ export default function AppShell({ children }: PropsWithChildren) {
             role="button"
             tabIndex={0}
             onClick={() => {
-              // prototype: "logout" returns to dashboard
+              // prototype: "logout" clears current user
+              setCurrentUser(null);
               navigate("/dashboard");
             }}
           >
@@ -69,13 +76,45 @@ export default function AppShell({ children }: PropsWithChildren) {
           </div>
           <div className="topRight">
             <div className="topPill">
-              <IconBell style={{ width: 18, height: 18, opacity: 0.65 }} />
+              <button
+                className="hamburger"
+                aria-label="Notifications"
+                style={{ width: 44, height: 44 }}
+                onClick={() => {
+                  const top = state.notifications.slice(0, 8);
+                  const body = top.map((n) => `• ${n.read ? "" : "[NEW] "}${n.title} (${n.at})\n  ${n.message}`).join("\n\n");
+                  alert(body || "No notifications.");
+                  markAllNotificationsRead();
+                }}
+              >
+                <div style={{ position: "relative" }}>
+                  <IconBell style={{ width: 18, height: 18, opacity: 0.65 }} />
+                  {unread ? (
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: -6,
+                        right: -6,
+                        background: "#e11d48",
+                        color: "#fff",
+                        borderRadius: 999,
+                        fontSize: 10,
+                        padding: "2px 6px",
+                        lineHeight: 1
+                      }}
+                    >
+                      {unread}
+                    </span>
+                  ) : null}
+                </div>
+              </button>
             </div>
-            <div className="topPill">
-              <div>English</div>
+            <div className="topPill" role="button" tabIndex={0} onClick={() => navigate("/language")}>
+              <IconGlobe style={{ width: 18, height: 18, opacity: 0.65 }} />
+              <div>{state.language}</div>
             </div>
-            <div className="topPill">
-              <div style={{ fontWeight: 600 }}>{location.pathname.startsWith("/work-orders/") ? "M(EMT)" : "Admin"}</div>
+            <div className="topPill" role="button" tabIndex={0} onClick={() => navigate("/profile")}>
+              <div style={{ fontWeight: 600 }}>{currentUser?.displayName ?? "Select User"}</div>
               <div className="avatar" />
             </div>
           </div>
@@ -85,4 +124,3 @@ export default function AppShell({ children }: PropsWithChildren) {
     </div>
   );
 }
-

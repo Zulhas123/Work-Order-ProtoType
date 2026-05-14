@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { MaterialLine, Priority, WorkOrderLine, WorkOrderStatus, useWorkOrders } from "../store/workOrders";
+import { useSettings } from "../store/settings";
+import { useUsers } from "../store/users";
 import { Button, Field, Panel } from "../ui/controls";
 import { IconList, IconPlus } from "../ui/icons";
 
@@ -23,7 +25,10 @@ export default function WorkOrderExecutionPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { getById, update, uid } = useWorkOrders();
+  const { state: settingsState } = useSettings();
+  const { activeUsers, getById: getUserById } = useUsers();
   const wo = id ? getById(id) : undefined;
+  const currentUser = settingsState.currentUserId ? getUserById(settingsState.currentUserId) : undefined;
   const [assignedTo, setAssignedTo] = useState(wo?.assignedTo ?? "");
   const [status, setStatus] = useState<WorkOrderStatus>(wo?.status ?? "Open");
   const [lineState, setLineState] = useState<WorkOrderLine["state"]>(wo?.lines[0]?.state ?? "Select");
@@ -80,9 +85,9 @@ export default function WorkOrderExecutionPage() {
               <Field label="কর্মী করুনঃ">
                 <select className="select" value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)}>
                   <option value="">Select One</option>
-                  {["M(EMT)", "M(CEMT)T-S", "PRAPOK(JABA)", "ADNAN_PREROK(JABA)"].map((v) => (
-                    <option key={v} value={v}>
-                      {v}
+                  {activeUsers.map((u) => (
+                    <option key={u.id} value={u.displayName}>
+                      {u.displayName}
                     </option>
                   ))}
                 </select>
@@ -124,7 +129,7 @@ export default function WorkOrderExecutionPage() {
                     onChange={(e) => {
                       const p = e.target.value as Priority;
                       const nextLines = wo.lines.map((l, idx) => (idx === 0 ? { ...l, priority: p } : l));
-                      update({ ...wo, lines: nextLines }, "M(EMT)", "Priority changed");
+                      update({ ...wo, lines: nextLines }, currentUser?.displayName ?? "Admin", "Priority changed");
                     }}
                   >
                     {PRIORITIES.map((p) => (
@@ -280,7 +285,7 @@ export default function WorkOrderExecutionPage() {
                   materials,
                   additionalDescription: description
                 },
-                "M(EMT)",
+                currentUser?.displayName ?? "Admin",
                 "Work order status has been changed"
               );
               navigate(`/work-orders/${wo.id}/review`);
@@ -293,4 +298,3 @@ export default function WorkOrderExecutionPage() {
     </div>
   );
 }
-
